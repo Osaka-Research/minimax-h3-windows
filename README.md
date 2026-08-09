@@ -1,10 +1,56 @@
-# minimax-h3-pipeline
+# MiniMax H3 (Hailuo 3.0) Video Generation Pipeline for Windows — Single GPU, No Manual Setup
 
-Windows pipeline, sized for a **single gaming GPU**, that installs the
-open-weight **MiniMax H3** (Hailuo 3.0) video model, polls a remote UI for
-generation jobs, runs local inference, and uploads the resulting video back.
-Auto-starts at logon and survives restarts. Fully automated setup — no
-manual browser steps.
+Self-hosted, fully automated Windows pipeline for running **MiniMax H3**
+(Hailuo 3.0) — MiniMax's open-weight text-to-video model — on a single
+NVIDIA gaming GPU via ComfyUI. Submit a prompt from any device through the
+included remote UI, and the Windows machine generates the video locally and
+uploads the result back. One command installs everything; it auto-starts on
+boot/login and self-heals if anything crashes.
+
+- **One-command install** — nothing needs to be preinstalled, not even
+  Python or Git.
+- **Runs on a single gaming GPU** (12GB+ NVIDIA), not the 4-GPU setup
+  MiniMax's own docs describe, via ComfyUI's quantized checkpoints.
+- **No manual ComfyUI workflow export** — the browser-only "Save (API
+  Format)" step is reimplemented in Python.
+- **Auto-starts on boot/login** and **self-heals**: crashed jobs retry,
+  a crashed ComfyUI restarts, a crashed worker process comes back within
+  15 minutes via a watchdog.
+- **Includes the remote UI** (`server/`) — a small hosted page to submit
+  prompts and watch/download finished videos from anywhere.
+
+## Install
+
+Paste this into a PowerShell prompt on the Windows machine with the GPU:
+
+```powershell
+irm https://raw.githubusercontent.com/Osaka-Research/video-gen/main/bootstrap.ps1 | iex
+```
+
+That's the whole install: it sets the execution policy for this session,
+fetches the repo, installs Python/Git/`winget` itself if any are missing,
+installs CUDA-enabled PyTorch, ComfyUI, and the quantized MiniMax H3
+checkpoints (~42.5GB), builds the ComfyUI workflow automatically, and
+registers auto-start. See [Prerequisites](#prerequisites) for the one thing
+it can't do for you, and [Configuration](#configuration) for the one value
+you edit afterward.
+
+As with any `irm | iex` one-liner, it's worth glancing at
+[`bootstrap.ps1`](bootstrap.ps1) first since it runs unreviewed code on
+your machine.
+
+<details>
+<summary>Installing manually instead (clone the repo yourself)</summary>
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; cd minimax-h3-pipeline; ./install.ps1
+```
+
+The execution-policy bypass is needed here specifically because this runs
+`install.ps1` as a file — the one-liner above doesn't hit this since it
+pipes into `iex` instead. Pass `-SkipAutostart` to `install.ps1` if you
+don't want it registered to auto-start.
+</details>
 
 ## Prerequisites
 
@@ -14,33 +60,16 @@ Python, Git, `winget` itself if that's even missing, the CUDA build of
 PyTorch specifically (not the CPU-only one plain `pip install torch` gives
 you on Windows), the Visual C++ Redistributable ComfyUI needs - is checked
 and auto-installed by `bootstrap.ps1`/`install.ps1`. Nothing needs to be
-preinstalled to run the one-liner below, down to and including Python and
+preinstalled to run the one-liner above, down to and including Python and
 Git themselves (`bootstrap.ps1` downloads a zip snapshot instead of using
 `git clone` if git isn't there yet; `install.ps1` then installs Python and
 Git properly via `winget` - bootstrapping `winget` first via Microsoft's
 official installer link if that's missing too). This has **not** been run
 end-to-end on a real Windows/GPU machine, since none was available while
-building it - see "Known unknowns" below for what to watch for on a first
-run, and what happens if something can't auto-install (clear error message
-+ manual install link, never a silent failure).
-
-## Quick install
-
-In a regular PowerShell prompt on the Windows machine:
-
-```powershell
-irm https://raw.githubusercontent.com/Osaka-Research/video-gen/main/bootstrap.ps1 | iex
-```
-
-This clones the repo to `%USERPROFILE%\video-gen` (or pulls latest if it's
-already there) and runs `install.ps1` — see below for what that does. As
-with any `irm | iex` one-liner, it's worth glancing at
-[`bootstrap.ps1`](bootstrap.ps1) first since it runs unreviewed code on your
-machine. For anything beyond the default full install (e.g.
-`-SkipAutostart`), clone the repo yourself and run `install.ps1` directly
-instead of using this one-liner - but see the execution-policy note in
-Setup below first, since a plain `.\install.ps1` may be blocked on a fresh
-machine in a way the one-liner isn't.
+building it - see [Known issues](#known-issues-and-troubleshooting) below
+for what to watch for on a first run, and what happens if something can't
+auto-install (clear error message + manual install link, never a silent
+failure).
 
 Model: [`Comfy-Org/MiniMax-H3`](https://huggingface.co/Comfy-Org/MiniMax-H3)
 (released 2026-08-03) — the ComfyUI-repackaged, quantized mirror of
@@ -58,7 +87,7 @@ independently verified here, so treat it as a starting point, not a
 guarantee. Local generation runs at 768px short-edge (2K needs a second
 upscale pass).
 
-## How the workflow gets built (no manual export step)
+## How the ComfyUI workflow is generated automatically
 
 MiniMax H3 ships as native ComfyUI support, driven through the browser UI
 with an official template. Talking to it from a script requires the
@@ -94,65 +123,12 @@ substituted in) and `workflow_source.json` (the original, for reference).
 `install.ps1` runs this for you; re-run `python setup_workflow.py` by hand
 any time (e.g. after a ComfyUI or H3 update) to regenerate both.
 
-## Layout
+## Configuration
 
-- `bootstrap.ps1` — the one-command installer entry point (`irm ... | iex`,
-  see Quick install above); fetches the repo (via git, or a zip if git
-  isn't installed yet) and runs `install.ps1`.
-- `install.ps1` — ensures Python and Git are present (installing them via
-  `winget` if not - bootstrapping `winget` itself first if needed), clones
-  ComfyUI, creates a venv, installs deps (CUDA PyTorch explicitly, then the
-  rest), downloads the quantized checkpoints into `ComfyUI/models/...`,
-  runs `setup_workflow.py`, and (by default) registers + starts auto-start
-  at logon. Pass `-SkipAutostart` to opt out. Re-runnable; every step is
-  skipped/replaced idempotently.
-- `setup_workflow.py` — the automated UI→API workflow conversion described
-  above.
-- `workflow_convert.py` — the general graph-flattening algorithm (subgraph
-  inlining, widget/socket resolution) it uses.
-- `comfy_client.py` — shared ComfyUI process launcher + HTTP API client,
-  used by both `setup_workflow.py` and `pipeline.py`.
-- `uninstall-autostart.ps1` — removes the scheduled task only.
-- `requirements.txt` — deps for the orchestration scripts themselves
-  (`ComfyUI/requirements.txt` covers ComfyUI's own, much larger, dependency set).
-- `config.example.json` — copy to `config.json`; remote UI endpoints and
-  ComfyUI launch settings. `prompt_node_id`/`prompt_input_key` start `null`
-  and get filled in automatically by `setup_workflow.py`.
-- `workflow_api.json` / `workflow_source.json` — generated by
-  `setup_workflow.py`, not hand-written.
-- `pipeline.py` — the runtime: starts ComfyUI if it isn't already running,
-  then loops: fetch prompt from remote UI → submit workflow to ComfyUI's
-  HTTP API → poll for completion → download result → upload back.
-- `run.bat` / `run-background.bat` — interactive vs. logged-to-file launchers.
-- `server/` — the "remote UI" itself: a small Flask app (prompt-submission
-  page + job queue + video storage) implementing the other end of this
-  contract. See `server/README.md`. Runs separately from the Windows
-  machine (a VPS, a hosting platform, or a tunnel) — it's what
-  `remote_ui_base_url` should point at.
-
-## Setup
-
-If cloning manually instead of using the Quick install one-liner above,
-chain the execution-policy bypass in with the rest — a fresh Windows
-machine's default policy otherwise blocks running `install.ps1` as a file
-at all (the one-liner above doesn't hit this since it pipes into `iex`
-instead of running a file):
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; cd minimax-h3-pipeline; ./install.ps1
-```
-
-This clones ComfyUI, sets up the venv, installs PyTorch with CUDA support
-explicitly (plain `pip install torch` on Windows silently gives you a
-CPU-only build otherwise — install.ps1 checks `torch.cuda.is_available()`
-afterward and warns if that happened anyway, e.g. from a driver mismatch),
-downloads ~42.5GB of quantized weights into
-`ComfyUI\models\{diffusion_models,text_encoders,vae}`, builds
-`workflow_api.json` automatically, and registers + starts auto-start.
-
-The only thing left to edit by hand is `config.json`'s `remote_ui_base_url`
-and `remote_api_key` — deploy `server/` somewhere reachable from the
-Windows machine (see `server/README.md`), then point at it:
+The only thing left to edit by hand after install is `config.json`'s
+`remote_ui_base_url` and `remote_api_key` — deploy `server/` somewhere
+reachable from the Windows machine (see `server/README.md`), then point at
+it:
 
 ```jsonc
 {
@@ -206,7 +182,8 @@ Task (`MiniMaxH3Pipeline`) that:
   user profile/venv need the session to exist first) **and** every 15
   minutes as a watchdog (a no-op if already running, via
   `MultipleInstances: IgnoreNew`) - so it comes back on its own if it ever
-  goes down, not just at the next logon. See "Failure handling" below.
+  goes down, not just at the next logon. See
+  [Failure handling](#failure-handling-and-self-healing) below.
 - Runs hidden (no console window), via `run-background.bat`.
 - Auto-restarts up to 5 times, 1 minute apart, on top of the watchdog above.
 - Has no execution time limit (it's meant to run indefinitely).
@@ -228,7 +205,7 @@ service), that needs `-RunLevel Highest` + stored credentials in
 `Register-ScheduledTask` and admin rights to set up — ask if you want that
 variant instead.
 
-## Failure handling
+## Failure handling and self-healing
 
 This is meant to run unattended, so failures at any layer are handled
 automatically rather than requiring someone to notice and restart things:
@@ -261,7 +238,43 @@ Tune the server's retry/timeout knobs via env vars:
 `MAX_JOB_RETRIES` (default 3), `STALE_CLAIM_TIMEOUT_MINUTES` (default 30).
 Failed jobs and their error messages/attempt counts show up on the `/` page.
 
-## Known unknowns (verify before relying on this)
+## Project structure
+
+- `bootstrap.ps1` — the one-command installer entry point (`irm ... | iex`,
+  see Install above); fetches the repo (via git, or a zip if git isn't
+  installed yet) and runs `install.ps1`.
+- `install.ps1` — ensures Python and Git are present (installing them via
+  `winget` if not - bootstrapping `winget` itself first if needed), clones
+  ComfyUI, creates a venv, installs deps (CUDA PyTorch explicitly, then the
+  rest), downloads the quantized checkpoints into `ComfyUI/models/...`,
+  runs `setup_workflow.py`, and (by default) registers + starts auto-start
+  at logon. Pass `-SkipAutostart` to opt out. Re-runnable; every step is
+  skipped/replaced idempotently.
+- `setup_workflow.py` — the automated UI→API workflow conversion described
+  above.
+- `workflow_convert.py` — the general graph-flattening algorithm (subgraph
+  inlining, widget/socket resolution) it uses.
+- `comfy_client.py` — shared ComfyUI process launcher + HTTP API client,
+  used by both `setup_workflow.py` and `pipeline.py`.
+- `uninstall-autostart.ps1` — removes the scheduled task only.
+- `requirements.txt` — deps for the orchestration scripts themselves
+  (`ComfyUI/requirements.txt` covers ComfyUI's own, much larger, dependency set).
+- `config.example.json` — copy to `config.json`; remote UI endpoints and
+  ComfyUI launch settings. `prompt_node_id`/`prompt_input_key` start `null`
+  and get filled in automatically by `setup_workflow.py`.
+- `workflow_api.json` / `workflow_source.json` — generated by
+  `setup_workflow.py`, not hand-written.
+- `pipeline.py` — the runtime: starts ComfyUI if it isn't already running,
+  then loops: fetch prompt from remote UI → submit workflow to ComfyUI's
+  HTTP API → poll for completion → download result → upload back.
+- `run.bat` / `run-background.bat` — interactive vs. logged-to-file launchers.
+- `server/` — the "remote UI" itself: a small Flask app (prompt-submission
+  page + job queue + video storage) implementing the other end of this
+  contract. See `server/README.md`. Runs separately from the Windows
+  machine (a VPS, a hosting platform, or a tunnel) — it's what
+  `remote_ui_base_url` should point at.
+
+## Known issues and troubleshooting
 
 - **None of `install.ps1`/`bootstrap.ps1` have been run on a real Windows
   machine** — there was no Windows/GPU box available while building this.
