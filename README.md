@@ -3,9 +3,9 @@
 Self-hosted, fully automated Windows pipeline for running **MiniMax H3**
 (Hailuo 3.0) — MiniMax's open-weight text-to-video model — on a single
 NVIDIA gaming GPU via ComfyUI. Submit a prompt from any device through the
-included remote UI, and the Windows machine generates the video locally and
-uploads the result back. One command installs everything; it auto-starts on
-boot/login and self-heals if anything crashes.
+companion remote UI, and the Windows machine generates the video locally
+and uploads the result back. One command installs everything; it
+auto-starts on boot/login and self-heals if anything crashes.
 
 - **One-command install** — nothing needs to be preinstalled, not even
   Python or Git.
@@ -16,8 +16,9 @@ boot/login and self-heals if anything crashes.
 - **Auto-starts on boot/login** and **self-heals**: crashed jobs retry,
   a crashed ComfyUI restarts, a crashed worker process comes back within
   15 minutes via a watchdog.
-- **Includes the remote UI** (`server/`) — a small hosted page to submit
-  prompts and watch/download finished videos from anywhere.
+- **Pairs with [`minimax-h3-server`](https://github.com/Osaka-Research/minimax-h3-server)**
+  — a small hosted remote UI to submit prompts and watch/download finished
+  videos from anywhere, deployed separately from the Windows machine(s).
 
 ## Install
 
@@ -126,16 +127,18 @@ any time (e.g. after a ComfyUI or H3 update) to regenerate both.
 ## Configuration
 
 The only thing left to edit by hand after install is `config.json`'s
-`remote_ui_base_url` and `remote_api_key` — deploy `server/` somewhere
-reachable from the Windows machine (see `server/README.md`), then point at
-it:
+`remote_ui_base_url` and `remote_api_key` — deploy
+[`minimax-h3-server`](https://github.com/Osaka-Research/minimax-h3-server)
+somewhere reachable from the Windows machine, then point at it:
 
 ```jsonc
 {
   "remote_ui_base_url": "https://your-deployed-server.example",
   "remote_api_key": "the-server's-API_KEY-value",
+  "worker_id": null,                           // defaults to this machine's hostname if unset
   "fetch_prompt_endpoint": "/jobs/next",       // GET -> {"job_id": "...", "prompt": "..."} or 204 if none queued
   "upload_endpoint": "/jobs/{job_id}/result",  // POST multipart file upload
+  "fail_endpoint": "/jobs/{job_id}/fail",      // POST {"error": "..."}
   "poll_interval_seconds": 10,
   "output_dir": "outputs",
 
@@ -151,8 +154,8 @@ it:
 }
 ```
 
-`fetch_prompt_endpoint`/`upload_endpoint` already match `server/app.py`'s
-routes by default.
+`fetch_prompt_endpoint`/`upload_endpoint`/`fail_endpoint` already match
+`minimax-h3-server`'s routes by default.
 
 ## Run
 
@@ -208,9 +211,9 @@ variant instead.
 ## Running on multiple devices
 
 Install this on more than one Windows machine and point them all at the
-same `server/` instance — there's no per-device setup beyond that. How work
-gets distributed falls out of the design rather than being a separate
-feature:
+same `minimax-h3-server` instance — there's no per-device setup beyond
+that. How work gets distributed falls out of the design rather than being a
+separate feature:
 
 - **No device registration or routing.** Every machine polls the same
   `GET /jobs/next`. Whichever one's request lands first claims the oldest
@@ -303,11 +306,12 @@ Failed jobs and their error messages/attempt counts show up on the `/` page.
   then loops: fetch prompt from remote UI → submit workflow to ComfyUI's
   HTTP API → poll for completion → download result → upload back.
 - `run.bat` / `run-background.bat` — interactive vs. logged-to-file launchers.
-- `server/` — the "remote UI" itself: a small Flask app (prompt-submission
-  page + job queue + video storage) implementing the other end of this
-  contract. See `server/README.md`. Runs separately from the Windows
-  machine (a VPS, a hosting platform, or a tunnel) — it's what
-  `remote_ui_base_url` should point at.
+
+The "remote UI" itself (prompt-submission page + job queue + video storage
+implementing the other end of this contract) lives in a separate repo,
+[`minimax-h3-server`](https://github.com/Osaka-Research/minimax-h3-server)
+— it's deployed independently of the Windows machine(s) (a VPS, a hosting
+platform, a tunnel) and is what `remote_ui_base_url` should point at.
 
 ## Known issues and troubleshooting
 
