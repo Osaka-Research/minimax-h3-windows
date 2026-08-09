@@ -8,6 +8,12 @@
 
 $ErrorActionPreference = "Stop"
 
+# Fresh Windows installs typically default to a PowerShell execution policy
+# that blocks running .ps1 FILES (this script itself is fine - it's piped
+# into iex, not run as a file - but the install.ps1 file we invoke below
+# would otherwise be blocked). Process scope, no admin needed.
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Error "git not found on PATH. Install Git from https://git-scm.com/download/win and re-run this command."
     exit 1

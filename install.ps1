@@ -15,6 +15,12 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# Fresh Windows installs typically default to a PowerShell execution policy
+# that blocks running .ps1 files at all. Process scope only affects this one
+# session and needs no admin rights, so this is safe to always set.
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
@@ -31,6 +37,25 @@ Require-Command "git" "Install Git from https://git-scm.com/download/win and re-
 
 $pyVersion = (python --version) 2>&1
 Write-Host "Found $pyVersion"
+
+if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
+    Write-Host (nvidia-smi --query-gpu=name,memory.total --format=csv,noheader)
+} else {
+    Write-Warning "nvidia-smi not found - no NVIDIA GPU/driver detected. This project targets a single NVIDIA GPU via CUDA; AMD/Intel/no-GPU is not a supported path here (would need ROCm/DirectML, not built). Continuing anyway, but generation will very likely fail or run unusably slowly on CPU."
+}
+
+$freeGB = [math]::Round((Get-PSDrive -Name ($root.Substring(0,1))).Free / 1GB, 1)
+if ($freeGB -lt 80) {
+    Write-Warning "Only ${freeGB}GB free on this drive. ComfyUI + ~42.5GB of model weights need roughly 60-80GB total. Continuing anyway, but the download may fail partway through if you run out of space."
+}
+
+# ComfyUI's Windows install docs require this; not something pip installs.
+if (Get-Command winget -ErrorAction SilentlyContinue) {
+    Write-Host "== Ensuring Visual C++ Redistributable is installed (required by ComfyUI on Windows) ==" -ForegroundColor Cyan
+    winget install --id Microsoft.VCRedist.2015+.x64 --accept-source-agreements --accept-package-agreements -e 2>&1 | Out-Null
+} else {
+    Write-Warning "winget not found - couldn't auto-install the Visual C++ Redistributable. If ComfyUI fails to start with a DLL error, install it manually: https://aka.ms/vs/17/release/vc_redist.x64.exe"
+}
 
 Write-Host "== Cloning ComfyUI ==" -ForegroundColor Cyan
 if (-not (Test-Path "ComfyUI")) {
@@ -51,8 +76,21 @@ $venvHfCli = Join-Path $root ".venv\Scripts\huggingface-cli.exe"
 
 Write-Host "== Installing Python dependencies ==" -ForegroundColor Cyan
 & $venvPython -m pip install --upgrade pip
+
+# Must happen BEFORE requirements.txt: plain `pip install torch` on Windows
+# pulls the CPU-only build from PyPI. Installing the CUDA build first means
+# requirements.txt sees torch already satisfied and won't silently replace
+# it with the CPU one. Matches ComfyUI's own documented Windows install order.
+Write-Host "Installing PyTorch with CUDA support (this is the one most likely to silently end up CPU-only if skipped)..." -ForegroundColor Cyan
+& $venvPython -m pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu130
+
 & $venvPython -m pip install -r ComfyUI\requirements.txt
 & $venvPython -m pip install -r requirements.txt
+
+$cudaCheck = & $venvPython -c "import torch; print(torch.cuda.is_available())" 2>&1
+if ($cudaCheck -notmatch "True") {
+    Write-Warning "torch.cuda.is_available() returned '$cudaCheck', not True - PyTorch installed without working CUDA. Generation will run on CPU (extremely slow/impractical) or fail. Check your NVIDIA driver version and see https://pytorch.org/get-started/locally/ for the matching CUDA build."
+}
 
 Write-Host "== Preparing config ==" -ForegroundColor Cyan
 if (-not (Test-Path "config.json")) {

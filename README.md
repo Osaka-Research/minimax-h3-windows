@@ -6,11 +6,24 @@ generation jobs, runs local inference, and uploads the resulting video back.
 Auto-starts at logon and survives restarts. Fully automated setup — no
 manual browser steps.
 
+## Prerequisites
+
+The one thing this project genuinely can't set up for you: an **NVIDIA GPU
+with a current driver**. Everything else below - Git, Python, PowerShell's
+execution policy, the CUDA build of PyTorch specifically (not the CPU-only
+one plain `pip install torch` gives you on Windows), the Visual C++
+Redistributable ComfyUI needs - `install.ps1` checks for and handles itself
+(installs, or warns clearly and continues if it can't). This has **not**
+been run end-to-end on a real Windows/GPU machine, since none was available
+while building it - see "Known unknowns" below for what to watch for on a
+first run. [Git](https://git-scm.com/download/win) and
+[Python 3.10+](https://www.python.org/downloads/) do need to already be on
+PATH; `install.ps1` fails fast with a specific error+link if either is
+missing rather than guessing.
+
 ## Quick install
 
-In an elevated or regular PowerShell prompt on the Windows machine (needs
-[Git](https://git-scm.com/download/win) and
-[Python 3.10+](https://www.python.org/downloads/) already on PATH):
+In a regular PowerShell prompt on the Windows machine:
 
 ```powershell
 irm https://raw.githubusercontent.com/Osaka-Research/video-gen/main/bootstrap.ps1 | iex
@@ -22,7 +35,9 @@ with any `irm | iex` one-liner, it's worth glancing at
 [`bootstrap.ps1`](bootstrap.ps1) first since it runs unreviewed code on your
 machine. For anything beyond the default full install (e.g.
 `-SkipAutostart`), clone the repo yourself and run `install.ps1` directly
-instead of using this one-liner.
+instead of using this one-liner - but see the execution-policy note in
+Setup below first, since a plain `.\install.ps1` may be blocked on a fresh
+machine in a way the one-liner isn't.
 
 Model: [`Comfy-Org/MiniMax-H3`](https://huggingface.co/Comfy-Org/MiniMax-H3)
 (released 2026-08-03) — the ComfyUI-repackaged, quantized mirror of
@@ -111,13 +126,23 @@ any time (e.g. after a ComfyUI or H3 update) to regenerate both.
 
 ## Setup
 
+If cloning manually instead of using the Quick install one-liner above, set
+the execution policy for this session first — a fresh Windows machine's
+default policy otherwise blocks running `install.ps1` as a file at all (the
+one-liner doesn't hit this since it pipes into `iex` instead):
+
 ```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 cd minimax-h3-pipeline
 ./install.ps1
 ```
 
-This clones ComfyUI, sets up the venv, downloads ~42.5GB of quantized
-weights into `ComfyUI\models\{diffusion_models,text_encoders,vae}`, builds
+This clones ComfyUI, sets up the venv, installs PyTorch with CUDA support
+explicitly (plain `pip install torch` on Windows silently gives you a
+CPU-only build otherwise — install.ps1 checks `torch.cuda.is_available()`
+afterward and warns if that happened anyway, e.g. from a driver mismatch),
+downloads ~42.5GB of quantized weights into
+`ComfyUI\models\{diffusion_models,text_encoders,vae}`, builds
 `workflow_api.json` automatically, and registers + starts auto-start.
 
 The only thing left to edit by hand is `config.json`'s `remote_ui_base_url`
@@ -233,6 +258,19 @@ Failed jobs and their error messages/attempt counts show up on the `/` page.
 
 ## Known unknowns (verify before relying on this)
 
+- **None of `install.ps1`/`bootstrap.ps1` have been run on a real Windows
+  machine** — there was no Windows/GPU box available while building this.
+  What's here reflects checking real documentation for each gap found
+  (e.g. ComfyUI's own Windows install docs for the CUDA-torch ordering,
+  confirmed default-execution-policy and CPU-only-torch behavior via
+  search) rather than guessing, but "should work based on docs" isn't the
+  same as "verified working." If `install.ps1` fails partway, the error
+  should point at what broke — re-running it is safe (every step is
+  idempotent) after fixing that one thing.
+- **Visual C++ Redistributable install via `winget`** is attempted silently
+  (output suppressed) since it should be a no-op if already present; if
+  ComfyUI fails to start with a DLL-related error, install it manually from
+  the link `install.ps1` prints.
 - **12GB VRAM claim is ComfyUI's own, unverified here.** If generation OOMs
   on your card, try switching `diffusion_models` to the smaller
   `pruned_fp8_scaled` checkpoint (fallback, per Comfy-Org's own notes;
