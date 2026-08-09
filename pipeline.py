@@ -17,6 +17,7 @@ service exists:
 import argparse
 import copy
 import json
+import socket
 import sys
 import time
 import traceback
@@ -39,9 +40,12 @@ def load_config() -> dict:
     return json.loads(CONFIG_PATH.read_text())
 
 
-def _auth_headers(config: dict) -> dict:
+def _request_headers(config: dict) -> dict:
+    headers = {"X-Worker-Id": config.get("worker_id") or socket.gethostname()}
     api_key = config.get("remote_api_key")
-    return {"X-API-Key": api_key} if api_key else {}
+    if api_key:
+        headers["X-API-Key"] = api_key
+    return headers
 
 
 def _request_with_retry(method: str, url: str, **kwargs) -> requests.Response:
@@ -65,7 +69,7 @@ def _request_with_retry(method: str, url: str, **kwargs) -> requests.Response:
 
 def fetch_next_prompt(config: dict) -> dict | None:
     url = config["remote_ui_base_url"].rstrip("/") + config["fetch_prompt_endpoint"]
-    resp = _request_with_retry("GET", url, headers=_auth_headers(config), timeout=30)
+    resp = _request_with_retry("GET", url, headers=_request_headers(config), timeout=30)
     if resp.status_code == 204:
         return None
     resp.raise_for_status()
@@ -78,7 +82,7 @@ def upload_result(config: dict, job_id: str, video_path: Path) -> None:
     with open(video_path, "rb") as f:
         resp = _request_with_retry(
             "POST", url, files={"video": (video_path.name, f, "video/mp4")},
-            headers=_auth_headers(config), timeout=300,
+            headers=_request_headers(config), timeout=300,
         )
     resp.raise_for_status()
 
@@ -91,7 +95,7 @@ def report_failure(config: dict, job_id: str, error: str) -> None:
     try:
         endpoint = config.get("fail_endpoint", "/jobs/{job_id}/fail").replace("{job_id}", job_id)
         url = config["remote_ui_base_url"].rstrip("/") + endpoint
-        requests.post(url, json={"error": error}, headers=_auth_headers(config), timeout=30)
+        requests.post(url, json={"error": error}, headers=_request_headers(config), timeout=30)
     except requests.RequestException as exc:
         print(f"  (could not report failure to remote UI: {exc})")
 

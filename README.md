@@ -205,6 +205,41 @@ service), that needs `-RunLevel Highest` + stored credentials in
 `Register-ScheduledTask` and admin rights to set up — ask if you want that
 variant instead.
 
+## Running on multiple devices
+
+Install this on more than one Windows machine and point them all at the
+same `server/` instance — there's no per-device setup beyond that. How work
+gets distributed falls out of the design rather than being a separate
+feature:
+
+- **No device registration or routing.** Every machine polls the same
+  `GET /jobs/next`. Whichever one's request lands first claims the oldest
+  queued job - first-come-first-served, not round-robin or capability-aware.
+- **A busy device doesn't compete for new work.** `pipeline.py` only polls
+  again after it finishes its current job (generate + upload happen
+  synchronously in the loop), so an idle second device is what picks up the
+  next job. With only one device and it's busy, a new job just sits queued
+  until that device finishes and polls again (every `poll_interval_seconds`).
+- **Failover isn't sticky to one device.** If a device fails a job or goes
+  silent (crash, network loss), the job goes back into the shared queue via
+  the retry/stale-reclaim logic in [Failure handling](#failure-handling-and-self-healing)
+  below - *any* device can pick it up next, not just the one that failed.
+  `MAX_JOB_RETRIES` counts attempts across all devices combined, so a
+  fundamentally broken prompt won't bounce forever between every machine
+  you own.
+- **The claim itself is race-safe under real concurrency**, not just in
+  theory: verified by running the server under `gunicorn -w 4` and firing
+  20 genuinely concurrent claim requests at 5 queued jobs — each job was
+  claimed by exactly one request, the other 15 correctly got nothing.
+  (`next_job()` re-checks the job's status inside the claiming `UPDATE`'s
+  `WHERE` clause and retries on the rare row another request claims first,
+  rather than a plain select-then-update that a fast enough race could
+  double-claim.)
+- **The `/` page shows which device claimed each job** (`X-Worker-Id`
+  header, defaults to the machine's hostname; override via `worker_id` in
+  `config.json`) alongside its attempt count - useful for seeing your
+  workload spread across machines, or spotting one that's failing a lot.
+
 ## Failure handling and self-healing
 
 This is meant to run unattended, so failures at any layer are handled
