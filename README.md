@@ -173,9 +173,12 @@ running (using `comfyui_extra_args`, e.g. `--lowvram`).
 for future logons *and* **starts it immediately**. It creates a Scheduled
 Task (`MiniMaxH3Pipeline`) that:
 - Triggers **at user logon** (not raw system boot — GPU drivers and your
-  user profile/venv need the session to exist first).
+  user profile/venv need the session to exist first) **and** every 15
+  minutes as a watchdog (a no-op if already running, via
+  `MultipleInstances: IgnoreNew`) - so it comes back on its own if it ever
+  goes down, not just at the next logon. See "Failure handling" below.
 - Runs hidden (no console window), via `run-background.bat`.
-- Auto-restarts up to 5 times, 1 minute apart, if the process crashes.
+- Auto-restarts up to 5 times, 1 minute apart, on top of the watchdog above.
 - Has no execution time limit (it's meant to run indefinitely).
 - Does **not** require admin rights, since it runs in your own session
   rather than as SYSTEM.
@@ -194,6 +197,39 @@ Note: if you want it running even when nobody is logged in (true headless
 service), that needs `-RunLevel Highest` + stored credentials in
 `Register-ScheduledTask` and admin rights to set up — ask if you want that
 variant instead.
+
+## Failure handling
+
+This is meant to run unattended, so failures at any layer are handled
+automatically rather than requiring someone to notice and restart things:
+
+- **A single bad job** (bad prompt, ComfyUI OOM, transient network error)
+  doesn't crash the worker. `pipeline.py` catches per-job errors, reports
+  them to the server (`POST /jobs/<id>/fail`), and moves on to the next
+  poll. The server re-queues that job for another automatic attempt (up to
+  `MAX_JOB_RETRIES`, default 3) before marking it permanently `failed`.
+- **ComfyUI dying mid-run** is checked and restarted before every job
+  (`ensure_running()`), not just once at process startup.
+- **The worker process itself crashing** (including before it can report
+  any failure - power loss, OOM-killed, etc.) is handled two ways: retries
+  with backoff around the whole poll loop and initial ComfyUI startup
+  inside `pipeline.py` first; failing that, the job stays claimed
+  ("in_progress") on the server but is automatically treated as available
+  again after `STALE_CLAIM_TIMEOUT_MINUTES` (default 30) - so it still gets
+  retried even if the client never says a word. Jobs that exhaust
+  `MAX_JOB_RETRIES` this way also resolve to `failed` (with an explanatory
+  error message) instead of sitting stuck forever.
+- **The Windows process disappearing entirely** (crash outside Python's
+  control) is covered by the Scheduled Task: on top of the 5-attempts/
+  1-minute restart-on-failure, `install.ps1` also adds a 15-minute
+  recurring trigger (`MultipleInstances: IgnoreNew`, so it's a no-op if
+  already running) as a watchdog - so it comes back within 15 minutes no
+  matter how many times it's already failed, rather than giving up until
+  the next logon.
+
+Tune the server's retry/timeout knobs via env vars:
+`MAX_JOB_RETRIES` (default 3), `STALE_CLAIM_TIMEOUT_MINUTES` (default 30).
+Failed jobs and their error messages/attempt counts show up on the `/` page.
 
 ## Known unknowns (verify before relying on this)
 

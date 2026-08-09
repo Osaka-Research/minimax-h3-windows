@@ -92,25 +92,37 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if (-not $SkipAutostart) {
-    Write-Host "== Registering auto-start at logon ==" -ForegroundColor Cyan
+    Write-Host "== Registering auto-start at logon + watchdog ==" -ForegroundColor Cyan
     $taskName = "MiniMaxH3Pipeline"
     $bgScript = Join-Path $root "run-background.bat"
     $action = New-ScheduledTaskAction -Execute $bgScript -WorkingDirectory $root
-    $trigger = New-ScheduledTaskTrigger -AtLogOn
+
+    # Two triggers: start at logon, and a recurring watchdog check every 15
+    # minutes. IgnoreNew means the watchdog is a no-op while it's already
+    # running - but if the process ever dies outside Task Scheduler's own
+    # restart-on-failure window (see RestartCount/RestartInterval below,
+    # which only covers the first few minutes after a crash), the watchdog
+    # brings it back within 15 minutes instead of leaving it down until the
+    # next logon/reboot.
+    $logonTrigger = New-ScheduledTaskTrigger -AtLogOn
+    $watchdogTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
+        -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration ([TimeSpan]::MaxValue)
+
     $settings = New-ScheduledTaskSettingsSet `
         -Hidden `
         -AllowStartIfOnBatteries `
         -DontStopIfGoingOnBatteries `
         -StartWhenAvailable `
+        -MultipleInstances IgnoreNew `
         -RestartCount 5 `
         -RestartInterval (New-TimeSpan -Minutes 1) `
         -ExecutionTimeLimit (New-TimeSpan -Seconds 0)
 
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
     Register-ScheduledTask -TaskName $taskName `
-        -Action $action -Trigger $trigger -Settings $settings `
+        -Action $action -Trigger @($logonTrigger, $watchdogTrigger) -Settings $settings `
         -Description "Polls remote UI for MiniMax H3 video generation jobs" | Out-Null
-    Write-Host "Registered scheduled task '$taskName' - will auto-start at every future logon." -ForegroundColor Green
+    Write-Host "Registered scheduled task '$taskName' - auto-starts at logon and is checked/restarted every 15 min if down." -ForegroundColor Green
 
     Write-Host "== Starting it now ==" -ForegroundColor Cyan
     Start-ScheduledTask -TaskName $taskName

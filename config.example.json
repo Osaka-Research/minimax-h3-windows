@@ -3,6 +3,7 @@
   "remote_api_key": "REPLACE_ME",
   "fetch_prompt_endpoint": "/jobs/next",
   "upload_endpoint": "/jobs/{job_id}/result",
+  "fail_endpoint": "/jobs/{job_id}/fail",
   "poll_interval_seconds": 10,
   "output_dir": "outputs",
 
