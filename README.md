@@ -6,6 +6,24 @@ generation jobs, runs local inference, and uploads the resulting video back.
 Auto-starts at logon and survives restarts. Fully automated setup — no
 manual browser steps.
 
+## Quick install
+
+In an elevated or regular PowerShell prompt on the Windows machine (needs
+[Git](https://git-scm.com/download/win) and
+[Python 3.10+](https://www.python.org/downloads/) already on PATH):
+
+```powershell
+irm https://raw.githubusercontent.com/Osaka-Research/video-gen/main/bootstrap.ps1 | iex
+```
+
+This clones the repo to `%USERPROFILE%\video-gen` (or pulls latest if it's
+already there) and runs `install.ps1` — see below for what that does. As
+with any `irm | iex` one-liner, it's worth glancing at
+[`bootstrap.ps1`](bootstrap.ps1) first since it runs unreviewed code on your
+machine. For anything beyond the default full install (e.g.
+`-SkipAutostart`), clone the repo yourself and run `install.ps1` directly
+instead of using this one-liner.
+
 Model: [`Comfy-Org/MiniMax-H3`](https://huggingface.co/Comfy-Org/MiniMax-H3)
 (released 2026-08-03) — the ComfyUI-repackaged, quantized mirror of
 [`MiniMaxAI/MiniMax-H3`](https://huggingface.co/MiniMaxAI/MiniMax-H3).
@@ -60,6 +78,8 @@ any time (e.g. after a ComfyUI or H3 update) to regenerate both.
 
 ## Layout
 
+- `bootstrap.ps1` — the one-command installer entry point (`irm ... | iex`,
+  see Quick install above); clones/updates the repo and runs `install.ps1`.
 - `install.ps1` — clones ComfyUI, creates a venv, installs deps, downloads
   the quantized checkpoints into `ComfyUI/models/...`, runs
   `setup_workflow.py`, and (by default) registers + starts auto-start at
