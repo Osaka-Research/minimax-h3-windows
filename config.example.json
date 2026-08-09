@@ -1,0 +1,17 @@
+{
+  "remote_ui_base_url": "https://YOUR-REMOTE-UI.example/api",
+  "fetch_prompt_endpoint": "/jobs/next",
+  "upload_endpoint": "/jobs/{job_id}/result",
+  "poll_interval_seconds": 10,
+  "output_dir": "outputs",
+
+  "comfyui_dir": "ComfyUI",
+  "comfyui_host": "127.0.0.1",
+  "comfyui_port": 8188,
+  "comfyui_extra_args": ["--lowvram"],
+
+  "workflow_template": "t2v",
+  "workflow_path": "workflow_api.json",
+  "prompt_node_id": null,
+  "prompt_input_key": null
+}
