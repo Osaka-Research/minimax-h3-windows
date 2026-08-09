@@ -9,17 +9,20 @@ manual browser steps.
 ## Prerequisites
 
 The one thing this project genuinely can't set up for you: an **NVIDIA GPU
-with a current driver**. Everything else below - Git, Python, PowerShell's
-execution policy, the CUDA build of PyTorch specifically (not the CPU-only
-one plain `pip install torch` gives you on Windows), the Visual C++
-Redistributable ComfyUI needs - `install.ps1` checks for and handles itself
-(installs, or warns clearly and continues if it can't). This has **not**
-been run end-to-end on a real Windows/GPU machine, since none was available
-while building it - see "Known unknowns" below for what to watch for on a
-first run. [Git](https://git-scm.com/download/win) and
-[Python 3.10+](https://www.python.org/downloads/) do need to already be on
-PATH; `install.ps1` fails fast with a specific error+link if either is
-missing rather than guessing.
+with a current driver**. Everything else - PowerShell's execution policy,
+Python, Git, `winget` itself if that's even missing, the CUDA build of
+PyTorch specifically (not the CPU-only one plain `pip install torch` gives
+you on Windows), the Visual C++ Redistributable ComfyUI needs - is checked
+and auto-installed by `bootstrap.ps1`/`install.ps1`. Nothing needs to be
+preinstalled to run the one-liner below, down to and including Python and
+Git themselves (`bootstrap.ps1` downloads a zip snapshot instead of using
+`git clone` if git isn't there yet; `install.ps1` then installs Python and
+Git properly via `winget` - bootstrapping `winget` first via Microsoft's
+official installer link if that's missing too). This has **not** been run
+end-to-end on a real Windows/GPU machine, since none was available while
+building it - see "Known unknowns" below for what to watch for on a first
+run, and what happens if something can't auto-install (clear error message
++ manual install link, never a silent failure).
 
 ## Quick install
 
@@ -94,11 +97,14 @@ any time (e.g. after a ComfyUI or H3 update) to regenerate both.
 ## Layout
 
 - `bootstrap.ps1` — the one-command installer entry point (`irm ... | iex`,
-  see Quick install above); clones/updates the repo and runs `install.ps1`.
-- `install.ps1` — clones ComfyUI, creates a venv, installs deps, downloads
-  the quantized checkpoints into `ComfyUI/models/...`, runs
-  `setup_workflow.py`, and (by default) registers + starts auto-start at
-  logon. Pass `-SkipAutostart` to opt out. Re-runnable; every step is
+  see Quick install above); fetches the repo (via git, or a zip if git
+  isn't installed yet) and runs `install.ps1`.
+- `install.ps1` — ensures Python and Git are present (installing them via
+  `winget` if not - bootstrapping `winget` itself first if needed), clones
+  ComfyUI, creates a venv, installs deps (CUDA PyTorch explicitly, then the
+  rest), downloads the quantized checkpoints into `ComfyUI/models/...`,
+  runs `setup_workflow.py`, and (by default) registers + starts auto-start
+  at logon. Pass `-SkipAutostart` to opt out. Re-runnable; every step is
   skipped/replaced idempotently.
 - `setup_workflow.py` — the automated UI→API workflow conversion described
   above.

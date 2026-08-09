@@ -24,16 +24,50 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
-function Require-Command($name, $hint) {
-    if (-not (Get-Command $name -ErrorAction SilentlyContinue)) {
-        Write-Error "$name not found on PATH. $hint"
+# Installers (winget, python.org, git-scm) write PATH to the registry, but an
+# already-running PowerShell process keeps its own cached copy of PATH from
+# when it started - re-reading from the registry picks up anything just
+# installed without needing a new shell.
+function Update-SessionPath {
+    $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = @($machinePath, $userPath) -join ";"
+}
+
+function Ensure-Winget {
+    if (Get-Command winget -ErrorAction SilentlyContinue) { return }
+    Write-Host "winget not found - installing it first (needed to auto-install Python/Git)..." -ForegroundColor Cyan
+    $bundle = Join-Path $env:TEMP "AppInstaller.msixbundle"
+    Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile $bundle -UseBasicParsing
+    Add-AppxPackage -Path $bundle
+    Update-SessionPath
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        Write-Error "Could not install winget automatically (can happen on older/locked-down Windows builds). Install these manually, then re-run this script:`n  Python 3.10+: https://www.python.org/downloads/`n  Git: https://git-scm.com/download/win"
         exit 1
     }
 }
 
+# Verified real winget package IDs (github.com/microsoft/winget-pkgs manifests):
+# Git.Git, Python.Python.3.13.
+function Ensure-Command($cmdName, $wingetId, $displayName) {
+    if (Get-Command $cmdName -ErrorAction SilentlyContinue) {
+        Write-Host "$displayName found."
+        return
+    }
+    Ensure-Winget
+    Write-Host "Installing $displayName via winget ($wingetId)..." -ForegroundColor Cyan
+    winget install --id $wingetId -e --silent --accept-source-agreements --accept-package-agreements
+    Update-SessionPath
+    if (-not (Get-Command $cmdName -ErrorAction SilentlyContinue)) {
+        Write-Error "$displayName installed but '$cmdName' isn't visible on PATH in this session yet. Close this PowerShell window, open a new one, and re-run this script - every step here is safe to re-run."
+        exit 1
+    }
+    Write-Host "$displayName installed." -ForegroundColor Green
+}
+
 Write-Host "== Checking prerequisites ==" -ForegroundColor Cyan
-Require-Command "python" "Install Python 3.10+ from https://www.python.org/downloads/ and re-run."
-Require-Command "git" "Install Git from https://git-scm.com/download/win and re-run."
+Ensure-Command "python" "Python.Python.3.13" "Python"
+Ensure-Command "git" "Git.Git" "Git"
 
 $pyVersion = (python --version) 2>&1
 Write-Host "Found $pyVersion"
