@@ -1,7 +1,7 @@
 <#
     One-command installer entry point - meant to be run via:
-      irm https://raw.githubusercontent.com/Osaka-Research/video-gen/main/bootstrap.ps1 | iex
-    Fetches the repo into %USERPROFILE%\video-gen and runs install.ps1.
+      irm https://raw.githubusercontent.com/Osaka-Research/minimax-h3-windows/main/bootstrap.ps1 | iex
+    Fetches the repo into %USERPROFILE%\minimax-h3-windows and runs install.ps1.
     Deliberately assumes nothing about the host beyond PowerShell itself -
     doesn't even require git (downloads a zip instead if git isn't present
     yet; install.ps1 installs git properly afterward, since it needs it
@@ -18,9 +18,9 @@ $ErrorActionPreference = "Stop"
 # would otherwise be blocked). Process scope, no admin needed.
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 
-$repoUrl = "https://github.com/Osaka-Research/video-gen.git"
-$zipUrl = "https://github.com/Osaka-Research/video-gen/archive/refs/heads/main.zip"
-$target = Join-Path $env:USERPROFILE "video-gen"
+$repoUrl = "https://github.com/Osaka-Research/minimax-h3-windows.git"
+$zipUrl = "https://github.com/Osaka-Research/minimax-h3-windows/archive/refs/heads/main.zip"
+$target = Join-Path $env:USERPROFILE "minimax-h3-windows"
 
 if (Test-Path (Join-Path $target ".git")) {
     Write-Host "== $target already exists - pulling latest instead of cloning ==" -ForegroundColor Cyan
@@ -37,12 +37,13 @@ if (Test-Path (Join-Path $target ".git")) {
     # No git yet - don't require it just to fetch this repo. install.ps1
     # installs git properly afterward (it needs it anyway, to clone ComfyUI).
     Write-Host "== git not found yet - downloading a zip snapshot instead ==" -ForegroundColor Cyan
-    $zipPath = Join-Path $env:TEMP "video-gen.zip"
-    $extractDir = Join-Path $env:TEMP "video-gen-extract"
+    $zipPath = Join-Path $env:TEMP "minimax-h3-windows.zip"
+    $extractDir = Join-Path $env:TEMP "minimax-h3-windows-extract"
     Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing
     if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force }
     Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
-    Move-Item (Join-Path $extractDir "video-gen-main") $target
+    # GitHub's zip archives extract to a "<repo>-<branch>" folder - must match the repo name exactly.
+    Move-Item (Join-Path $extractDir "minimax-h3-windows-main") $target
     Remove-Item $zipPath, $extractDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 

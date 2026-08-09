@@ -24,7 +24,7 @@ boot/login and self-heals if anything crashes.
 Paste this into a PowerShell prompt on the Windows machine with the GPU:
 
 ```powershell
-irm https://raw.githubusercontent.com/Osaka-Research/video-gen/main/bootstrap.ps1 | iex
+irm https://raw.githubusercontent.com/Osaka-Research/minimax-h3-windows/main/bootstrap.ps1 | iex
 ```
 
 That's the whole install: it sets the execution policy for this session,
