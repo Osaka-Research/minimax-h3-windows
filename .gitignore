@@ -8,3 +8,5 @@ workflow_api.json
 workflow_source.json
 __pycache__/
 *.pyc
+server/data/
+server/.venv/

@@ -1,5 +1,6 @@
 {
-  "remote_ui_base_url": "https://YOUR-REMOTE-UI.example/api",
+  "remote_ui_base_url": "https://YOUR-REMOTE-UI.example",
+  "remote_api_key": "REPLACE_ME",
   "fetch_prompt_endpoint": "/jobs/next",
   "upload_endpoint": "/jobs/{job_id}/result",
   "poll_interval_seconds": 10,

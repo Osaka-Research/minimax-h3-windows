@@ -35,9 +35,14 @@ def load_config() -> dict:
     return json.loads(CONFIG_PATH.read_text())
 
 
+def _auth_headers(config: dict) -> dict:
+    api_key = config.get("remote_api_key")
+    return {"X-API-Key": api_key} if api_key else {}
+
+
 def fetch_next_prompt(config: dict) -> dict | None:
     url = config["remote_ui_base_url"].rstrip("/") + config["fetch_prompt_endpoint"]
-    resp = requests.get(url, timeout=30)
+    resp = requests.get(url, headers=_auth_headers(config), timeout=30)
     if resp.status_code == 204:
         return None
     resp.raise_for_status()
@@ -48,7 +53,10 @@ def upload_result(config: dict, job_id: str, video_path: Path) -> None:
     endpoint = config["upload_endpoint"].replace("{job_id}", job_id)
     url = config["remote_ui_base_url"].rstrip("/") + endpoint
     with open(video_path, "rb") as f:
-        resp = requests.post(url, files={"video": (video_path.name, f, "video/mp4")}, timeout=300)
+        resp = requests.post(
+            url, files={"video": (video_path.name, f, "video/mp4")},
+            headers=_auth_headers(config), timeout=300,
+        )
     resp.raise_for_status()
 
 

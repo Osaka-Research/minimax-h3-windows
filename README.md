@@ -83,6 +83,11 @@ any time (e.g. after a ComfyUI or H3 update) to regenerate both.
   then loops: fetch prompt from remote UI → submit workflow to ComfyUI's
   HTTP API → poll for completion → download result → upload back.
 - `run.bat` / `run-background.bat` — interactive vs. logged-to-file launchers.
+- `server/` — the "remote UI" itself: a small Flask app (prompt-submission
+  page + job queue + video storage) implementing the other end of this
+  contract. See `server/README.md`. Runs separately from the Windows
+  machine (a VPS, a hosting platform, or a tunnel) — it's what
+  `remote_ui_base_url` should point at.
 
 ## Setup
 
@@ -96,11 +101,13 @@ weights into `ComfyUI\models\{diffusion_models,text_encoders,vae}`, builds
 `workflow_api.json` automatically, and registers + starts auto-start.
 
 The only thing left to edit by hand is `config.json`'s `remote_ui_base_url`
-— that's a **placeholder** until you point it at a real service:
+and `remote_api_key` — deploy `server/` somewhere reachable from the
+Windows machine (see `server/README.md`), then point at it:
 
 ```jsonc
 {
-  "remote_ui_base_url": "https://YOUR-REMOTE-UI.example/api",
+  "remote_ui_base_url": "https://your-deployed-server.example",
+  "remote_api_key": "the-server's-API_KEY-value",
   "fetch_prompt_endpoint": "/jobs/next",       // GET -> {"job_id": "...", "prompt": "..."} or 204 if none queued
   "upload_endpoint": "/jobs/{job_id}/result",  // POST multipart file upload
   "poll_interval_seconds": 10,
@@ -118,9 +125,8 @@ The only thing left to edit by hand is `config.json`'s `remote_ui_base_url`
 }
 ```
 
-Point `remote_ui_base_url` at whatever service you stand up, matching (or
-adjusting `pipeline.py`'s `fetch_next_prompt`/`upload_result` to match) the
-endpoint shapes above.
+`fetch_prompt_endpoint`/`upload_endpoint` already match `server/app.py`'s
+routes by default.
 
 ## Run
 
