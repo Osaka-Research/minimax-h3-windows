@@ -132,15 +132,14 @@ any time (e.g. after a ComfyUI or H3 update) to regenerate both.
 
 ## Setup
 
-If cloning manually instead of using the Quick install one-liner above, set
-the execution policy for this session first — a fresh Windows machine's
-default policy otherwise blocks running `install.ps1` as a file at all (the
-one-liner doesn't hit this since it pipes into `iex` instead):
+If cloning manually instead of using the Quick install one-liner above,
+chain the execution-policy bypass in with the rest — a fresh Windows
+machine's default policy otherwise blocks running `install.ps1` as a file
+at all (the one-liner above doesn't hit this since it pipes into `iex`
+instead of running a file):
 
 ```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-cd minimax-h3-pipeline
-./install.ps1
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; cd minimax-h3-pipeline; ./install.ps1
 ```
 
 This clones ComfyUI, sets up the venv, installs PyTorch with CUDA support
