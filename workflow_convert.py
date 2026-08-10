@@ -13,6 +13,10 @@ uses exactly the subgraph-instance shape handled here.
 
 PRIMITIVE_WIDGET_TYPES = {"INT", "FLOAT", "STRING", "BOOLEAN", "COMBO"}
 
+# UI-only node types with no backend/object_info entry - ComfyUI's own API
+# export skips these too, so we must never try to emit them.
+NON_EXECUTING_NODE_TYPES = {"MarkdownNote", "Note"}
+
 
 def is_widget_type(type_field) -> bool:
     """A type is widget-eligible (gets a slot in widgets_values) only if it's an
@@ -82,6 +86,8 @@ class WorkflowFlattener:
     def flatten(self) -> dict:
         top_scope = _Scope(self.workflow["nodes"], self.workflow["links"], path=())
         for n in self.workflow["nodes"]:
+            if n["type"] in NON_EXECUTING_NODE_TYPES:
+                continue
             if n["type"] not in self.subgraph_defs:
                 self._emit(n["id"], top_scope, outer_ctx=None)
         return self.flat
