@@ -23,10 +23,10 @@ if (-not $SkipAutostart) {
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
         Write-Host "Re-launching elevated (required to register the auto-start scheduled task)..." -ForegroundColor Yellow
-        $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"")
-        if ($SkipAutostart) { $psArgs += '-SkipAutostart' }
-        Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $psArgs -Wait
-        exit $LASTEXITCODE
+        $psArgLine = '-NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '"'
+        if ($SkipAutostart) { $psArgLine += ' -SkipAutostart' }
+        $proc = Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $psArgLine -Wait -PassThru
+        exit $proc.ExitCode
     }
 }
 
