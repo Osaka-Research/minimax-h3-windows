@@ -1,13 +1,13 @@
 <#
     One-command installer entry point - meant to be run via:
       irm https://raw.githubusercontent.com/Osaka-Research/minimax-h3-windows/main/bootstrap.ps1 | iex
-    Fetches the repo into %USERPROFILE%\minimax-h3-windows and runs install.ps1.
-    Deliberately assumes nothing about the host beyond PowerShell itself -
-    doesn't even require git (downloads a zip instead if git isn't present
-    yet; install.ps1 installs git properly afterward, since it needs it
-    anyway to clone ComfyUI). For anything beyond the default full install
-    (e.g. -SkipAutostart), clone the repo yourself and run install.ps1
-    directly instead.
+    Picks an install location automatically (see Select-InstallDrive below)
+    and runs install.ps1 there. Deliberately assumes nothing about the host
+    beyond PowerShell itself - doesn't even require git (downloads a zip
+    instead if git isn't present yet; install.ps1 installs git properly
+    afterward, since it needs it anyway to clone ComfyUI). For anything
+    beyond the default full install (e.g. -SkipAutostart), clone the repo
+    yourself and run install.ps1 directly instead.
 #>
 
 $ErrorActionPreference = "Stop"
@@ -20,7 +20,54 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 
 $repoUrl = "https://github.com/Osaka-Research/minimax-h3-windows.git"
 $zipUrl = "https://github.com/Osaka-Research/minimax-h3-windows/archive/refs/heads/main.zip"
-$target = Join-Path $env:USERPROFILE "minimax-h3-windows"
+$folderName = "minimax-h3-windows"
+$minFreeGB = 80  # matches install.ps1's own free-space warning threshold
+
+# A previous run may have landed on a different drive than the default (see
+# Select-InstallDrive) - check for that before picking a location fresh, so
+# re-running this command always finds and updates the same install rather
+# than starting a second one somewhere else.
+function Find-ExistingInstall {
+    $candidates = @(Join-Path $env:USERPROFILE $folderName)
+    $candidates += Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue |
+        ForEach-Object { Join-Path "$($_.Name):\" $folderName }
+    foreach ($c in ($candidates | Select-Object -Unique)) {
+        if (Test-Path $c) { return $c }
+    }
+    return $null
+}
+
+# Prefers the default (user profile) drive - keeps behavior predictable -
+# but if it doesn't have room for the ~60-80GB this needs, automatically
+# picks whichever fixed drive has the most free space instead of failing
+# partway through a multi-GB download.
+function Select-InstallDrive {
+    $defaultDrive = $env:USERPROFILE.Substring(0, 1)
+    $drives = Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue |
+        Where-Object { $_.Free } | Sort-Object -Property Free -Descending
+    $defaultInfo = $drives | Where-Object { $_.Name -eq $defaultDrive }
+    if ($defaultInfo -and ($defaultInfo.Free / 1GB) -ge $minFreeGB) {
+        return $defaultDrive
+    }
+    $best = $drives | Select-Object -First 1
+    if ($best -and $best.Name -ne $defaultDrive -and ($best.Free / 1GB) -ge $minFreeGB) {
+        Write-Host "== ${defaultDrive}: doesn't have ${minFreeGB}GB free - using $($best.Name): instead (more free space) ==" -ForegroundColor Yellow
+        return $best.Name
+    }
+    # Nothing qualifies - fall back to the default; install.ps1's own
+    # free-space check will warn about it rather than fail silently here.
+    return $defaultDrive
+}
+
+$target = Find-ExistingInstall
+if (-not $target) {
+    $drive = Select-InstallDrive
+    $target = if ($drive -eq $env:USERPROFILE.Substring(0, 1)) {
+        Join-Path $env:USERPROFILE $folderName
+    } else {
+        Join-Path "$($drive):\" $folderName
+    }
+}
 
 if (Test-Path (Join-Path $target ".git")) {
     Write-Host "== $target already exists - pulling latest instead of cloning ==" -ForegroundColor Cyan
