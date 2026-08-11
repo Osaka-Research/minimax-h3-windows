@@ -160,7 +160,10 @@ if (-not (Test-Path ".venv")) {
 }
 
 $venvPython = Join-Path $root ".venv\Scripts\python.exe"
-$venvHfCli = Join-Path $root ".venv\Scripts\huggingface-cli.exe"
+# huggingface_hub's `huggingface-cli` entry point is deprecated and now a
+# no-op stub that just prints a warning and exits without downloading
+# anything - `hf` is its replacement, same subcommand syntax.
+$venvHf = Join-Path $root ".venv\Scripts\hf.exe"
 
 Write-Host "== Installing Python dependencies ==" -ForegroundColor Cyan
 & $venvPython -m pip install --upgrade pip
@@ -200,7 +203,16 @@ function Download-IfMissing($repoId, $filename, $destDir) {
     if (Test-Path $destPath) {
         Write-Host "$filename already present, skipping"
     } else {
-        & $venvHfCli download $repoId $filename --local-dir $destDir
+        & $venvHf download $repoId $filename --local-dir $destDir
+        # `hf download`'s exit code alone isn't trustworthy enough to skip
+        # this - confirm the file actually landed, so a silent failure here
+        # (disk full, network drop, deprecated-CLI no-op, etc.) surfaces
+        # immediately instead of leaving ComfyUI to fail much later with a
+        # confusing "not in []" validation error on an empty model folder.
+        if (-not (Test-Path $destPath)) {
+            Write-Error "Download of '$filename' did not produce $destPath - check the output above for the actual error."
+            exit 1
+        }
     }
 }
 
