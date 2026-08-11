@@ -41,11 +41,7 @@ def load_config() -> dict:
 
 
 def _request_headers(config: dict) -> dict:
-    headers = {"X-Worker-Id": config.get("worker_id") or socket.gethostname()}
-    api_key = config.get("remote_api_key")
-    if api_key:
-        headers["X-API-Key"] = api_key
-    return headers
+    return {"X-Worker-Id": config.get("worker_id") or socket.gethostname()}
 
 
 def _request_with_retry(method: str, url: str, **kwargs) -> requests.Response:

@@ -145,7 +145,7 @@ if ($cudaCheck -notmatch "True") {
 Write-Host "== Preparing config ==" -ForegroundColor Cyan
 if (-not (Test-Path "config.json")) {
     Copy-Item "config.example.json" "config.json"
-    Write-Host "Created config.json from template - edit remote_api_key before running the pipeline." -ForegroundColor Yellow
+    Write-Host "Created config.json from template." -ForegroundColor Yellow
 } else {
     Write-Host "config.json already exists, skipping"
 }
@@ -219,5 +219,4 @@ if (-not $SkipAutostart) {
 
 Write-Host "== Done ==" -ForegroundColor Green
 Write-Host "No manual workflow export needed - setup_workflow.py handled it."
-Write-Host "One thing to still edit: config.json's remote_api_key - it's a placeholder until you set the server's real key."
 Write-Host "Logs: $root\logs\pipeline.log"
