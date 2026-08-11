@@ -127,6 +127,22 @@ class WorkflowFlattener:
             elif name in widget_value_by_name:
                 inputs_out[name] = widget_value_by_name[name]
 
+        # Dynamic inputs (e.g. Autogrow-templated slots like "values.a",
+        # "values.b") are expanded by ComfyUI server-side per node instance
+        # during prompt validation and never appear in the static
+        # /object_info schema under their concrete dotted names, so `ordered`
+        # above can't see them. Fall back to the node's own instance sockets
+        # for anything `ordered` didn't already resolve.
+        handled_names = {name for name, _ in ordered}
+        for sock in node.get("inputs", []):
+            name = sock["name"]
+            if name in inputs_out or name in handled_names:
+                continue
+            if sock.get("link") is not None:
+                resolved = self._resolve_link(sock["link"], scope, outer_ctx)
+                if resolved is not None:
+                    inputs_out[name] = resolved
+
         self.flat[str(flat_id)] = {"class_type": class_type, "inputs": inputs_out}
         return flat_id
 
