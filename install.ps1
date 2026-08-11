@@ -22,11 +22,20 @@ param(
 if (-not $SkipAutostart) {
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
+        # $PSCommandPath is unreliable depending on how this script was
+        # invoked (e.g. via the bootstrap.ps1 `irm | iex` one-liner's `&`
+        # call) - $MyInvocation.MyCommand.Path is what the rest of this
+        # script already relies on for its own path, further down.
+        $scriptPath = $MyInvocation.MyCommand.Path
+        if (-not $scriptPath) {
+            Write-Error "Could not determine this script's own path to re-launch elevated. Run install.ps1 directly (e.g. '.\install.ps1') rather than through a pipe, then try again."
+            exit 1
+        }
         Write-Host "Re-launching elevated (required to register the auto-start scheduled task)..." -ForegroundColor Yellow
         # -NoExit: keeps the elevated window open after the script finishes
         # (or errors) instead of instantly closing, so output/errors are
         # actually readable instead of flashing shut.
-        $psArgLine = '-NoExit -NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '"'
+        $psArgLine = '-NoExit -NoProfile -ExecutionPolicy Bypass -File "' + $scriptPath + '"'
         if ($SkipAutostart) { $psArgLine += ' -SkipAutostart' }
         Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $psArgLine
         Write-Host "Continue in the new elevated window that just opened." -ForegroundColor Yellow
