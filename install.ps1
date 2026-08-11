@@ -178,7 +178,7 @@ if (-not $SkipAutostart) {
     # next logon/reboot.
     $logonTrigger = New-ScheduledTaskTrigger -AtLogOn
     $watchdogTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
-        -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration ([TimeSpan]::MaxValue)
+        -RepetitionInterval (New-TimeSpan -Minutes 15)
 
     $settings = New-ScheduledTaskSettingsSet `
         -Hidden `
