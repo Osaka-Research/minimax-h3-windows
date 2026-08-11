@@ -164,12 +164,14 @@ class WorkflowFlattener:
 
         node_inputs_by_name = {i["name"]: i for i in instance_node.get("inputs", [])}
         sock = node_inputs_by_name.get(boundary_name)
-        if sock is not None:
-            if sock.get("link") is not None:
-                return self._resolve_link(sock["link"], instance_scope, outer_ctx)
-            return None  # declared as a socket but left unconnected
+        if sock is not None and sock.get("link") is not None:
+            return self._resolve_link(sock["link"], instance_scope, outer_ctx)
 
-        # Not exposed as a socket on the instance -> must be a widget on the instance node.
+        # No link - either not exposed as a socket on the instance at all, or
+        # exposed but left at its default (a widget-backed boundary socket
+        # with link=null still means "use widgets_values", same as any
+        # ordinary node's unconnected widget input in _emit - it does NOT
+        # mean "no value". Both cases fall through to the same widget lookup.
         ordered = [(inp["name"], inp["type"]) for inp in sg_def["inputs"]]
         widget_names = [name for name, typ in ordered if is_widget_type(typ)]
         widget_values = instance_node.get("widgets_values") or []
