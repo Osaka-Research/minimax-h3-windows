@@ -76,29 +76,48 @@ function Ensure-Winget {
     }
 }
 
+# A fresh Windows install always has a fake python.exe/python3.exe on PATH
+# under WindowsApps (the Microsoft Store "App Execution Alias" stub) even
+# when no real Python is installed - it satisfies Get-Command but errors
+# out ("Python was not found; run without arguments to install from the
+# Microsoft Store...") the moment it's actually run. Must be treated as
+# absent, not a real install - and since WindowsApps can also sit ahead of
+# a just-installed real Python in PATH order, every later invocation in
+# this script uses the resolved real path below rather than bare `python`.
+function Get-RealCommandPath($cmdName) {
+    $matches = Get-Command $cmdName -All -ErrorAction SilentlyContinue
+    foreach ($m in $matches) {
+        if ($m.Source -notlike "*\WindowsApps\*") { return $m.Source }
+    }
+    return $null
+}
+
 # Verified real winget package IDs (github.com/microsoft/winget-pkgs manifests):
 # Git.Git, Python.Python.3.13.
 function Ensure-Command($cmdName, $wingetId, $displayName) {
-    if (Get-Command $cmdName -ErrorAction SilentlyContinue) {
+    $resolved = Get-RealCommandPath $cmdName
+    if ($resolved) {
         Write-Host "$displayName found."
-        return
+        return $resolved
     }
     Ensure-Winget
     Write-Host "Installing $displayName via winget ($wingetId)..." -ForegroundColor Cyan
     winget install --id $wingetId -e --silent --accept-source-agreements --accept-package-agreements
     Update-SessionPath
-    if (-not (Get-Command $cmdName -ErrorAction SilentlyContinue)) {
+    $resolved = Get-RealCommandPath $cmdName
+    if (-not $resolved) {
         Write-Error "$displayName installed but '$cmdName' isn't visible on PATH in this session yet. Close this PowerShell window, open a new one, and re-run this script - every step here is safe to re-run."
         exit 1
     }
     Write-Host "$displayName installed." -ForegroundColor Green
+    return $resolved
 }
 
 Write-Host "== Checking prerequisites ==" -ForegroundColor Cyan
-Ensure-Command "python" "Python.Python.3.13" "Python"
-Ensure-Command "git" "Git.Git" "Git"
+$pythonExe = Ensure-Command "python" "Python.Python.3.13" "Python"
+Ensure-Command "git" "Git.Git" "Git" | Out-Null
 
-$pyVersion = (python --version) 2>&1
+$pyVersion = (& $pythonExe --version) 2>&1
 Write-Host "Found $pyVersion"
 
 if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
@@ -129,7 +148,7 @@ if (-not (Test-Path "ComfyUI")) {
 
 Write-Host "== Creating virtual environment ==" -ForegroundColor Cyan
 if (-not (Test-Path ".venv")) {
-    python -m venv .venv
+    & $pythonExe -m venv .venv
 } else {
     Write-Host ".venv already exists, skipping"
 }
