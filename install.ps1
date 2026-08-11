@@ -262,6 +262,14 @@ if (-not $SkipAutostart) {
         -RestartInterval (New-TimeSpan -Minutes 1) `
         -ExecutionTimeLimit (New-TimeSpan -Seconds 0)
 
+    # Stop before Unregister: the task's MultipleInstances=IgnoreNew policy
+    # makes Start-ScheduledTask below a silent no-op if a previous run's
+    # process is still alive, so re-running this script after a code update
+    # (e.g. `git pull` + re-run) would otherwise keep the OLD process
+    # running indefinitely instead of picking up the fix. Unregistering
+    # alone doesn't kill an already-running instance, only the task
+    # definition, so this has to happen first.
+    Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
     Register-ScheduledTask -TaskName $taskName `
         -Action $action -Trigger @($logonTrigger, $watchdogTrigger) -Settings $settings `
@@ -270,7 +278,7 @@ if (-not $SkipAutostart) {
 
     Write-Host "== Starting it now ==" -ForegroundColor Cyan
     Start-ScheduledTask -TaskName $taskName
-    Write-Host "Started. Remove auto-start: .\uninstall-autostart.ps1"
+    Write-Host "Started (any previous run was stopped first, so this always picks up the latest code). Remove auto-start: .\uninstall-autostart.ps1"
 }
 
 Write-Host "== Done ==" -ForegroundColor Green
