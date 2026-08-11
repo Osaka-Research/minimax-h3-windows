@@ -53,7 +53,18 @@ class ComfyUIClient:
         return self._object_info_cache
 
     def submit(self, flat_workflow: dict) -> str:
-        resp = requests.post(f"{self.base_url}/prompt", json={"prompt": flat_workflow, "client_id": self.client_id})
+        # Bounded timeout: without it, a hung ComfyUI server blocks this call
+        # forever - run_once() never returns, the worker never polls again,
+        # and the job sits "in_progress" with no way to self-recover short of
+        # a manual restart.
+        try:
+            resp = requests.post(
+                f"{self.base_url}/prompt",
+                json={"prompt": flat_workflow, "client_id": self.client_id},
+                timeout=60,
+            )
+        except requests.RequestException as exc:
+            raise RuntimeError(f"ComfyUI did not respond to prompt submission: {exc}") from exc
         if not resp.ok:
             # ComfyUI's 400 body carries the actual per-node validation
             # errors (e.g. "Value not in list", "Required input is
