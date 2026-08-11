@@ -23,10 +23,14 @@ if (-not $SkipAutostart) {
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
         Write-Host "Re-launching elevated (required to register the auto-start scheduled task)..." -ForegroundColor Yellow
-        $psArgLine = '-NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '"'
+        # -NoExit: keeps the elevated window open after the script finishes
+        # (or errors) instead of instantly closing, so output/errors are
+        # actually readable instead of flashing shut.
+        $psArgLine = '-NoExit -NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '"'
         if ($SkipAutostart) { $psArgLine += ' -SkipAutostart' }
-        $proc = Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $psArgLine -Wait -PassThru
-        exit $proc.ExitCode
+        Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $psArgLine
+        Write-Host "Continue in the new elevated window that just opened." -ForegroundColor Yellow
+        exit
     }
 }
 
