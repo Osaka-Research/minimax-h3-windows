@@ -1,5 +1,5 @@
 {
-  "remote_ui_base_url": "https://YOUR-REMOTE-UI.example",
+  "remote_ui_base_url": "https://minimax-h3-server.onrender.com",
   "remote_api_key": "REPLACE_ME",
   "worker_id": null,
   "fetch_prompt_endpoint": "/jobs/next",

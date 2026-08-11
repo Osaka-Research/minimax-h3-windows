@@ -126,14 +126,15 @@ any time (e.g. after a ComfyUI or H3 update) to regenerate both.
 
 ## Configuration
 
-The only thing left to edit by hand after install is `config.json`'s
-`remote_ui_base_url` and `remote_api_key` — deploy
-[`minimax-h3-server`](https://github.com/Osaka-Research/minimax-h3-server)
-somewhere reachable from the Windows machine, then point at it:
+`remote_ui_base_url` in `config.example.json` already points at the
+deployed [`minimax-h3-server`](https://github.com/Osaka-Research/minimax-h3-server)
+instance. The only thing left to edit by hand after install is
+`config.json`'s `remote_api_key` — an API key is a secret and can't be
+committed to this (public) repo, so set it to that server's real key:
 
 ```jsonc
 {
-  "remote_ui_base_url": "https://your-deployed-server.example",
+  "remote_ui_base_url": "https://minimax-h3-server.onrender.com",
   "remote_api_key": "the-server's-API_KEY-value",
   "worker_id": null,                           // defaults to this machine's hostname if unset
   "fetch_prompt_endpoint": "/jobs/next",       // GET -> {"job_id": "...", "prompt": "..."} or 204 if none queued
