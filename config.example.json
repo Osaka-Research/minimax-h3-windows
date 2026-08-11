@@ -15,5 +15,9 @@
   "workflow_template": "t2v",
   "workflow_path": "workflow_api.json",
   "prompt_node_id": null,
-  "prompt_input_key": null
+  "prompt_input_key": null,
+
+  "video_aspect_ratio": null,
+  "video_megapixels": null,
+  "video_duration_seconds": null
 }

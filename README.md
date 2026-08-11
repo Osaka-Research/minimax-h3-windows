@@ -149,9 +149,22 @@ auth, so no key to set (see that repo's README for the tradeoff this makes):
   "workflow_template": "t2v",
   "workflow_path": "workflow_api.json",
   "prompt_node_id": "126",        // <- auto-filled by setup_workflow.py
-  "prompt_input_key": "prompt"    // <- auto-filled by setup_workflow.py
+  "prompt_input_key": "prompt",   // <- auto-filled by setup_workflow.py
+
+  "video_aspect_ratio": null,     // e.g. "9:16 (Portrait Widescreen)" for mobile - null = template default (16:9)
+  "video_megapixels": null,       // total resolution budget the aspect ratio is scaled to - null = template default (0.4)
+  "video_duration_seconds": null  // null = template default (5)
 }
 ```
+
+`video_aspect_ratio` accepts any of ComfyUI's `ResolutionSelector` presets:
+`"1:1 (Square)"`, `"2:3 (Portrait Photo)"`, `"3:2 (Photo)"`,
+`"3:4 (Portrait Standard)"`, `"4:3 (Standard)"`,
+`"9:16 (Portrait Widescreen)"`, `"16:9 (Widescreen)"`, `"21:9 (Ultrawide)"`.
+These three are baked into `workflow_api.json` once at setup time (unlike
+the prompt, which is substituted per job) - re-run `setup_workflow.py`
+(or just re-run `install.ps1`/the bootstrap one-liner, which always does)
+after changing them.
 
 `fetch_prompt_endpoint`/`upload_endpoint`/`fail_endpoint` already match
 `minimax-h3-server`'s routes by default.
