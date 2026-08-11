@@ -27,9 +27,29 @@ if (Test-Path (Join-Path $target ".git")) {
     Push-Location $target
     git pull
     Pop-Location
+} elseif ((Test-Path $target) -and (Get-Command git -ErrorAction SilentlyContinue)) {
+    # Left over from an earlier run that had to fall back to a zip snapshot
+    # (see the final branch below) because git wasn't installed yet. Now
+    # that it is, convert this folder into a real git checkout in place
+    # instead of just telling the user to delete and re-fetch by hand -
+    # `git checkout -f` only touches tracked files (install.ps1, *.py,
+    # README, etc.), so any already-downloaded ComfyUI/ or models/ (both
+    # gitignored, never tracked) are left alone.
+    Write-Host "== $target exists but predates git - converting it to a git checkout in place (keeps any already-downloaded ComfyUI/models) ==" -ForegroundColor Cyan
+    Push-Location $target
+    git init -q
+    git remote add origin $repoUrl 2>$null
+    git fetch origin main -q
+    git checkout -f -B main origin/main
+    git branch --set-upstream-to=origin/main main | Out-Null
+    Pop-Location
 } elseif (Test-Path $target) {
-    Write-Host "== $target already exists (from a previous zip-based fetch, no git yet at the time) - leaving it as-is ==" -ForegroundColor Cyan
-    Write-Host "Delete that folder and re-run this command if you want a fresh fetch now that git is available."
+    # $target exists but git still isn't available (e.g. an earlier run got
+    # a zip snapshot but never got as far as install.ps1 installing git).
+    # Can't safely clone or convert in place without git, and re-fetching
+    # the zip would collide with this existing folder - leave it alone.
+    Write-Host "== $target already exists and git still isn't available - leaving it as-is ==" -ForegroundColor Cyan
+    Write-Host "Delete that folder and re-run this command once git is installed if you want a fresh fetch."
 } elseif (Get-Command git -ErrorAction SilentlyContinue) {
     Write-Host "== Cloning into $target ==" -ForegroundColor Cyan
     git clone $repoUrl $target
