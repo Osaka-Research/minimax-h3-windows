@@ -198,29 +198,35 @@ $textEncoderDir = Join-Path $modelsRoot "text_encoders"
 $vaeDir = Join-Path $modelsRoot "vae"
 New-Item -ItemType Directory -Force -Path $diffusionDir, $textEncoderDir, $vaeDir | Out-Null
 
-function Download-IfMissing($repoId, $filename, $destDir) {
-    $destPath = Join-Path $destDir $filename
+# The repo lays files out under diffusion_models/, text_encoders/, vae/
+# subfolders (verified against the repo's real file listing) - which
+# happen to be named exactly like ComfyUI's own model folders, so
+# downloading with --local-dir pointed at $modelsRoot (not the specific
+# subfolder) reproduces the right layout automatically. $repoRelativePath
+# must include that subfolder prefix - a bare filename 404s.
+function Download-IfMissing($repoId, $repoRelativePath) {
+    $destPath = Join-Path $modelsRoot $repoRelativePath
     if (Test-Path $destPath) {
-        Write-Host "$filename already present, skipping"
+        Write-Host "$repoRelativePath already present, skipping"
     } else {
-        & $venvHf download $repoId $filename --local-dir $destDir
+        & $venvHf download $repoId $repoRelativePath --local-dir $modelsRoot
         # `hf download`'s exit code alone isn't trustworthy enough to skip
         # this - confirm the file actually landed, so a silent failure here
-        # (disk full, network drop, deprecated-CLI no-op, etc.) surfaces
+        # (disk full, network drop, wrong repo path, etc.) surfaces
         # immediately instead of leaving ComfyUI to fail much later with a
         # confusing "not in []" validation error on an empty model folder.
         if (-not (Test-Path $destPath)) {
-            Write-Error "Download of '$filename' did not produce $destPath - check the output above for the actual error."
+            Write-Error "Download of '$repoRelativePath' did not produce $destPath - check the output above for the actual error."
             exit 1
         }
     }
 }
 
 $repoId = "Comfy-Org/MiniMax-H3"
-Download-IfMissing $repoId "minimax_h3_fl2va_pruned_int8_convrot.safetensors" $diffusionDir
-Download-IfMissing $repoId "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors" $textEncoderDir
-Download-IfMissing $repoId "minimax_h3_video_vae_fp16.safetensors" $vaeDir
-Download-IfMissing $repoId "minimax_h3_audio_vae_fp32.safetensors" $vaeDir
+Download-IfMissing $repoId "diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors"
+Download-IfMissing $repoId "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"
+Download-IfMissing $repoId "vae/minimax_h3_video_vae_fp16.safetensors"
+Download-IfMissing $repoId "vae/minimax_h3_audio_vae_fp32.safetensors"
 
 Write-Host "== Setting up the generation workflow (automatic - downloads the official template, starts ComfyUI, converts it) ==" -ForegroundColor Cyan
 & $venvPython setup_workflow.py
