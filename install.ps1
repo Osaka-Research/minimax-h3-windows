@@ -14,6 +14,22 @@ param(
     [switch]$SkipAutostart
 )
 
+# Register-ScheduledTask (below) needs an elevated process or it fails with
+# "Access is denied". Elevate up front, before the ~42.5GB download/setup
+# work, so a non-admin run only prompts once and never repeats that work -
+# every step past this point is idempotent, so the elevated relaunch just
+# skips whatever the non-elevated instance already finished.
+if (-not $SkipAutostart) {
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if (-not $isAdmin) {
+        Write-Host "Re-launching elevated (required to register the auto-start scheduled task)..." -ForegroundColor Yellow
+        $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"")
+        if ($SkipAutostart) { $psArgs += '-SkipAutostart' }
+        Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $psArgs -Wait
+        exit $LASTEXITCODE
+    }
+}
+
 $ErrorActionPreference = "Stop"
 
 # Fresh Windows installs typically default to a PowerShell execution policy
