@@ -54,7 +54,18 @@ class ComfyUIClient:
 
     def submit(self, flat_workflow: dict) -> str:
         resp = requests.post(f"{self.base_url}/prompt", json={"prompt": flat_workflow, "client_id": self.client_id})
-        resp.raise_for_status()
+        if not resp.ok:
+            # ComfyUI's 400 body carries the actual per-node validation
+            # errors (e.g. "Value not in list", "Required input is
+            # missing") - raise_for_status() discarded that and left only
+            # a generic "400 Bad Request", which is useless once this
+            # traceback is all that's visible (uploaded to the remote UI,
+            # no access to the machine's own console).
+            try:
+                detail = resp.json()
+            except ValueError:
+                detail = resp.text
+            raise RuntimeError(f"ComfyUI rejected the prompt ({resp.status_code}): {detail}")
         return resp.json()["prompt_id"]
 
     def wait_for_result(self, prompt_id: str, timeout_s: int = 1800) -> dict:
