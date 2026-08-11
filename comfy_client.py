@@ -86,11 +86,24 @@ class ComfyUIClient:
             resp.raise_for_status()
             history = resp.json()
             if prompt_id in history:
-                outputs = history[prompt_id]["outputs"]
+                entry = history[prompt_id]
+                outputs = entry["outputs"]
                 for node_output in outputs.values():
                     for key in ("videos", "gifs", "images"):
                         if key in node_output and node_output[key]:
                             return node_output[key][0]
+                # Outputs come back empty both when a node genuinely produced
+                # nothing AND when execution errored out partway through -
+                # the latter's actual cause lives in status.messages, not
+                # outputs, and gets lost if we don't dig it out here.
+                messages = entry.get("status", {}).get("messages", [])
+                errors = [data for kind, data in messages if kind == "execution_error"]
+                if errors:
+                    err = errors[0]
+                    raise RuntimeError(
+                        f"ComfyUI job {prompt_id} failed in node {err.get('node_id')} "
+                        f"({err.get('node_type')}): {err.get('exception_type')}: {err.get('exception_message')}"
+                    )
                 raise RuntimeError(f"ComfyUI job {prompt_id} finished with no video/image output: {outputs}")
             time.sleep(3)
         raise RuntimeError(f"ComfyUI job {prompt_id} timed out after {timeout_s}s")
