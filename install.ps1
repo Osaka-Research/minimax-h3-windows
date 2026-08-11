@@ -68,7 +68,7 @@ function Ensure-Winget {
     Write-Host "winget not found - installing it first (needed to auto-install Python/Git)..." -ForegroundColor Cyan
     $bundle = Join-Path $env:TEMP "AppInstaller.msixbundle"
     Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile $bundle -UseBasicParsing
-    Add-AppxPackage -Path $bundle
+    Add-AppxPackage -Path $bundle | Out-Null
     Update-SessionPath
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
         Write-Error "Could not install winget automatically (can happen on older/locked-down Windows builds). Install these manually, then re-run this script:`n  Python 3.10+: https://www.python.org/downloads/`n  Git: https://git-scm.com/download/win"
@@ -102,7 +102,13 @@ function Ensure-Command($cmdName, $wingetId, $displayName) {
     }
     Ensure-Winget
     Write-Host "Installing $displayName via winget ($wingetId)..." -ForegroundColor Cyan
-    winget install --id $wingetId -e --silent --accept-source-agreements --accept-package-agreements
+    # Any unsuppressed output here would leak into this function's own
+    # return value (PowerShell functions implicitly return every unswallowed
+    # output, not just what follows `return`) and corrupt $resolved below -
+    # confirmed by a real run where winget's install-progress text got
+    # concatenated onto the returned path, producing a garbled command that
+    # then failed as "not recognized".
+    winget install --id $wingetId -e --silent --accept-source-agreements --accept-package-agreements | Out-Null
     Update-SessionPath
     $resolved = Get-RealCommandPath $cmdName
     if (-not $resolved) {
