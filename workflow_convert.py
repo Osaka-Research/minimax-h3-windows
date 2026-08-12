@@ -11,7 +11,11 @@ the real official MiniMax H3 text-to-video template
 uses exactly the subgraph-instance shape handled here.
 """
 
-PRIMITIVE_WIDGET_TYPES = {"INT", "FLOAT", "STRING", "BOOLEAN", "COMBO"}
+# "COMFY_DYNAMICCOMBO_V3" (e.g. SaveVideo's "codec") is a nested combo-of-combos
+# type, not a plain scalar - but unlike Autogrow's force_input sockets, it's not
+# forced to a socket, so left disconnected it still occupies a widgets_values
+# slot exactly like an ordinary COMBO.
+PRIMITIVE_WIDGET_TYPES = {"INT", "FLOAT", "STRING", "BOOLEAN", "COMBO", "COMFY_DYNAMICCOMBO_V3"}
 
 # UI-only node types with no backend/object_info entry - ComfyUI's own API
 # export skips these too, so we must never try to emit them.
